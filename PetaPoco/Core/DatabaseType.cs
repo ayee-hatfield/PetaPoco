@@ -138,7 +138,9 @@ namespace PetaPoco.Internal
 		public static DatabaseType Resolve(string TypeName, string ProviderName)
 		{
 			// Try using type name first (more reliable)
-			if (TypeName.StartsWith("MySql")) 
+            if (TypeName.StartsWith("Ifx"))
+                return Singleton<InformixDatabaseType>.Instance;
+            if (TypeName.StartsWith("MySql")) 
 				return Singleton<MySqlDatabaseType>.Instance;
 			if (TypeName.StartsWith("SqlCe")) 
 				return Singleton<SqlServerCEDatabaseType>.Instance;
@@ -148,9 +150,8 @@ namespace PetaPoco.Internal
 				return Singleton<OracleDatabaseType>.Instance;
 			if (TypeName.StartsWith("SQLite")) 
 				return Singleton<SQLiteDatabaseType>.Instance;
-			if (TypeName.StartsWith("System.Data.SqlClient.")) 
+            if (TypeName.StartsWith("System.Data.SqlClient.")) 
 				return Singleton<SqlServerDatabaseType>.Instance;
-			
 			// Try again with provider name
 			if (ProviderName.IndexOf("MySql", StringComparison.InvariantCultureIgnoreCase) >= 0) 
 				return Singleton<MySqlDatabaseType>.Instance;
