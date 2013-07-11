@@ -15,6 +15,11 @@ namespace PetaPoco.DatabaseTypes
 			return "?";
 		}
 
+        public override string BuildParameter(string prefix, int index)
+        {
+            return prefix;
+        }
+
 		public override void PreExecute(IDbCommand cmd)
 		{
 			cmd.GetType().GetProperty("BindByName").SetValue(cmd, true, null);

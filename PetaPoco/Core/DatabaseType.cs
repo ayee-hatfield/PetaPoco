@@ -24,6 +24,17 @@ namespace PetaPoco.Internal
 		}
 
 		/// <summary>
+		/// Builds the parameter used in SQL query strings.
+		/// </summary>
+		/// <param name="ConnectionString"></param>
+		/// <returns></returns>
+		public virtual string BuildParameter(string prefix, int index)
+		{
+		    return string.Format("{0}{1}", prefix, index );
+		}
+
+
+		/// <summary>
 		/// Converts a supplied C# object value into a value suitable for passing to the database
 		/// </summary>
 		/// <param name="value">The value to convert</param>

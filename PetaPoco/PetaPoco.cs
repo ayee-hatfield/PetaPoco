@@ -3104,6 +3104,16 @@ namespace PetaPoco
 			}
 
 			/// <summary>
+			/// Returns the prefix used to delimit parameters in SQL query strings.
+			/// </summary>
+			/// <param name="ConnectionString"></param>
+			/// <returns></returns>
+			public virtual string BuildParameter(string prefix, int index)
+			{
+				return string.Format("{0}{1}", prefix, index );
+			}
+
+			/// <summary>
 			/// Converts a supplied C# object value into a value suitable for passing to the database
 			/// </summary>
 			/// <param name="value">The value to convert</param>
@@ -4077,6 +4087,11 @@ namespace PetaPoco
 			public override string GetParameterPrefix(string ConnectionString)
 			{
 				return "?";
+			}
+
+			public override string BuildParameter(string prefix, int index)
+			{
+				return prefix;
 			}
 
 			public override void PreExecute(IDbCommand cmd)
