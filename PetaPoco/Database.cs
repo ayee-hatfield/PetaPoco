@@ -112,7 +112,7 @@ namespace PetaPoco
 			// Reset
 			_transactionDepth = 0;
 			EnableAutoSelect = true;
-			EnableNamedParams = true;
+			
 
 			// If a provider name was supplied, get the IDbProviderFactory for it
 			if (_providerName != null)
@@ -124,6 +124,8 @@ namespace PetaPoco
 
 			// What character is used for delimiting parameters in SQL
 			_paramPrefix = _dbType.GetParameterPrefix(_connectionString);
+
+			EnableNamedParams = _dbType.IsNamedParamsSupported(_connectionString);
 		}
 
 		#endregion
@@ -401,6 +403,9 @@ namespace PetaPoco
 		static Regex rxParamsPrefix = new Regex(@"(?<!@)@\w+", RegexOptions.Compiled);
 		public IDbCommand CreateCommand(IDbConnection connection, string sql, params object[] args)
 		{
+			// Prebuild the sql
+			_dbType.PreBuildCommand(ref sql, ref args);
+
 			// Perform named argument replacements
 			if (EnableNamedParams)
 			{
@@ -1133,7 +1138,7 @@ namespace PetaPoco
 							}
 
 							names.Add(_dbType.EscapeSqlIdentifier(i.Key));
-							values.Add(string.Format("{0}{1}", _paramPrefix, index++));
+							values.Add(_dbType.BuildParameter(_paramPrefix, index++));
 							AddParam(cmd, i.Value.GetValue(poco), i.Value.PropertyInfo);
 						}
 
@@ -1250,7 +1255,7 @@ namespace PetaPoco
 							foreach (var i in pd.Columns)
 							{
 								// Don't update the primary key, but grab the value if we don't have it
-								if (string.Compare(i.Key, primaryKeyName, true) == 0)
+								if (primaryKeyName.IndexOf(i.Key, StringComparison.InvariantCultureIgnoreCase) >= 0)
 								{
 									if (primaryKeyValue == null)
 										primaryKeyValue = i.Value.GetValue(poco);
@@ -1264,7 +1269,7 @@ namespace PetaPoco
 								// Build the sql
 								if (index > 0)
 									sb.Append(", ");
-								sb.AppendFormat("{0} = {1}{2}", _dbType.EscapeSqlIdentifier(i.Key), _paramPrefix, index++);
+								sb.AppendFormat("{0} = {1}", _dbType.EscapeSqlIdentifier(i.Key), _dbType.BuildParameter(_paramPrefix, index++));
 
 								// Store the parameter in the command
 								AddParam(cmd, i.Value.GetValue(poco), i.Value.PropertyInfo);
@@ -1279,7 +1284,7 @@ namespace PetaPoco
 								// Build the sql
 								if (index > 0)
 									sb.Append(", ");
-								sb.AppendFormat("{0} = {1}{2}", _dbType.EscapeSqlIdentifier(colname), _paramPrefix, index++);
+								sb.AppendFormat("{0} = {1}", _dbType.EscapeSqlIdentifier(colname), _dbType.BuildParameter(_paramPrefix, index++));
 
 								// Store the parameter in the command
 								AddParam(cmd, pc.GetValue(poco), pc.PropertyInfo);
@@ -1294,16 +1299,38 @@ namespace PetaPoco
 
 						}
 
-						// Find the property info for the primary key
-						PropertyInfo pkpi=null;
-						if (primaryKeyName != null)
+						var multiplePrimaryKeys = primaryKeyName.Split(',');
+						if (multiplePrimaryKeys.Length == 1)
 						{
-							pkpi = pd.Columns[primaryKeyName].PropertyInfo;
-						}
+							// Find the property info for the primary key
+							PropertyInfo pkpi = null;
+							if (primaryKeyName != null)
+							{
+								pkpi = pd.Columns[primaryKeyName].PropertyInfo;
+							}
 
-						cmd.CommandText = string.Format("UPDATE {0} SET {1} WHERE {2} = {3}{4}",
-											_dbType.EscapeTableName(tableName), sb.ToString(), _dbType.EscapeSqlIdentifier(primaryKeyName), _paramPrefix, index++);
-						AddParam(cmd, primaryKeyValue, pkpi);
+							cmd.CommandText = string.Format("UPDATE {0} SET {1} WHERE {2} = {3}",
+								_dbType.EscapeTableName(tableName), sb.ToString(), _dbType.EscapeSqlIdentifier(primaryKeyName), _dbType.BuildParameter(_paramPrefix, index++));
+							AddParam(cmd, primaryKeyValue, pkpi);
+						}
+						else
+						{
+							var pkQuery = new StringBuilder();
+
+							for (int pkIndex = 0; pkIndex < multiplePrimaryKeys.Length; pkIndex++)
+							{
+								if (pkIndex > 0)
+									pkQuery.Append(" AND ");
+								pkQuery.Append(string.Format("{0}={1}", _dbType.EscapeSqlIdentifier(multiplePrimaryKeys[pkIndex]), _dbType.BuildParameter(_paramPrefix, index++)));
+								index++;
+								var pc = pd.Columns[multiplePrimaryKeys[pkIndex]];
+								primaryKeyValue = pc.GetValue(poco);
+								AddParam(cmd, primaryKeyValue, pd.Columns[multiplePrimaryKeys[pkIndex]].PropertyInfo);
+							}
+
+							cmd.CommandText = string.Format("UPDATE {0} SET {1} WHERE {2}",
+								_dbType.EscapeTableName(tableName), sb, pkQuery);
+						}
 
 						DoPreExecute(cmd);
 

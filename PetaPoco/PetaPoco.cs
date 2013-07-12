@@ -118,7 +118,7 @@ namespace PetaPoco
 			// Reset
 			_transactionDepth = 0;
 			EnableAutoSelect = true;
-			EnableNamedParams = true;
+
 
 			// If a provider name was supplied, get the IDbProviderFactory for it
 			if (_providerName != null)
@@ -130,6 +130,8 @@ namespace PetaPoco
 
 			// What character is used for delimiting parameters in SQL
 			_paramPrefix = _dbType.GetParameterPrefix(_connectionString);
+
+			EnableNamedParams = _dbType.IsNamedParamsSupported(_connectionString);
 		}
 
 		#endregion
@@ -407,6 +409,9 @@ namespace PetaPoco
 		static Regex rxParamsPrefix = new Regex(@"(?<!@)@\w+", RegexOptions.Compiled);
 		public IDbCommand CreateCommand(IDbConnection connection, string sql, params object[] args)
 		{
+			// Prebuild the sql
+			_dbType.PreBuildCommand(ref sql, ref args);
+
 			// Perform named argument replacements
 			if (EnableNamedParams)
 			{
@@ -1139,7 +1144,7 @@ namespace PetaPoco
 							}
 
 							names.Add(_dbType.EscapeSqlIdentifier(i.Key));
-							values.Add(string.Format("{0}{1}", _paramPrefix, index++));
+							values.Add(_dbType.BuildParameter(_paramPrefix, index++));
 							AddParam(cmd, i.Value.GetValue(poco), i.Value.PropertyInfo);
 						}
 
@@ -1256,7 +1261,7 @@ namespace PetaPoco
 							foreach (var i in pd.Columns)
 							{
 								// Don't update the primary key, but grab the value if we don't have it
-								if (string.Compare(i.Key, primaryKeyName, true) == 0)
+								if (primaryKeyName.IndexOf(i.Key, StringComparison.InvariantCultureIgnoreCase) >= 0)
 								{
 									if (primaryKeyValue == null)
 										primaryKeyValue = i.Value.GetValue(poco);
@@ -1270,7 +1275,7 @@ namespace PetaPoco
 								// Build the sql
 								if (index > 0)
 									sb.Append(", ");
-								sb.AppendFormat("{0} = {1}{2}", _dbType.EscapeSqlIdentifier(i.Key), _paramPrefix, index++);
+								sb.AppendFormat("{0} = {1}", _dbType.EscapeSqlIdentifier(i.Key), _dbType.BuildParameter(_paramPrefix, index++));
 
 								// Store the parameter in the command
 								AddParam(cmd, i.Value.GetValue(poco), i.Value.PropertyInfo);
@@ -1285,7 +1290,7 @@ namespace PetaPoco
 								// Build the sql
 								if (index > 0)
 									sb.Append(", ");
-								sb.AppendFormat("{0} = {1}{2}", _dbType.EscapeSqlIdentifier(colname), _paramPrefix, index++);
+								sb.AppendFormat("{0} = {1}", _dbType.EscapeSqlIdentifier(colname), _dbType.BuildParameter(_paramPrefix, index++));
 
 								// Store the parameter in the command
 								AddParam(cmd, pc.GetValue(poco), pc.PropertyInfo);
@@ -1300,16 +1305,38 @@ namespace PetaPoco
 
 						}
 
-						// Find the property info for the primary key
-						PropertyInfo pkpi=null;
-						if (primaryKeyName != null)
+						var multiplePrimaryKeys = primaryKeyName.Split(',');
+						if (multiplePrimaryKeys.Length == 1)
 						{
-							pkpi = pd.Columns[primaryKeyName].PropertyInfo;
-						}
+							// Find the property info for the primary key
+							PropertyInfo pkpi = null;
+							if (primaryKeyName != null)
+							{
+								pkpi = pd.Columns[primaryKeyName].PropertyInfo;
+							}
 
-						cmd.CommandText = string.Format("UPDATE {0} SET {1} WHERE {2} = {3}{4}",
-											_dbType.EscapeTableName(tableName), sb.ToString(), _dbType.EscapeSqlIdentifier(primaryKeyName), _paramPrefix, index++);
-						AddParam(cmd, primaryKeyValue, pkpi);
+							cmd.CommandText = string.Format("UPDATE {0} SET {1} WHERE {2} = {3}",
+								_dbType.EscapeTableName(tableName), sb.ToString(), _dbType.EscapeSqlIdentifier(primaryKeyName), _dbType.BuildParameter(_paramPrefix, index++));
+							AddParam(cmd, primaryKeyValue, pkpi);
+						}
+						else
+						{
+							var pkQuery = new StringBuilder();
+
+							for (int pkIndex = 0; pkIndex < multiplePrimaryKeys.Length; pkIndex++)
+							{
+								if (pkIndex > 0)
+									pkQuery.Append(" AND ");
+								pkQuery.Append(string.Format("{0}={1}", _dbType.EscapeSqlIdentifier(multiplePrimaryKeys[pkIndex]), _dbType.BuildParameter(_paramPrefix, index++)));
+								index++;
+								var pc = pd.Columns[multiplePrimaryKeys[pkIndex]];
+								primaryKeyValue = pc.GetValue(poco);
+								AddParam(cmd, primaryKeyValue, pd.Columns[multiplePrimaryKeys[pkIndex]].PropertyInfo);
+							}
+
+							cmd.CommandText = string.Format("UPDATE {0} SET {1} WHERE {2}",
+								_dbType.EscapeTableName(tableName), sb, pkQuery);
+						}
 
 						DoPreExecute(cmd);
 
@@ -2304,9 +2331,14 @@ namespace PetaPoco
 	/// Specifies the primary key column of a poco class, whether the column is auto incrementing
 	/// and the sequence name for Oracle sequence columns.
 	/// </summary>
-	[AttributeUsage(AttributeTargets.Class)]
+	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Property)]
 	public class PrimaryKeyAttribute : Attribute
 	{
+		public PrimaryKeyAttribute()
+		{
+			autoIncrement = true;
+		}
+
 		public PrimaryKeyAttribute(string primaryKey)
 		{
 			Value = primaryKey;
@@ -3044,11 +3076,35 @@ namespace PetaPoco
 			var a = t.GetCustomAttributes(typeof(TableNameAttribute), true);
 			ti.TableName = a.Length == 0 ? t.Name : (a[0] as TableNameAttribute).Value;
 
-			// Get the primary key
+			// Get the primary key on class level
 			a = t.GetCustomAttributes(typeof(PrimaryKeyAttribute), true);
-			ti.PrimaryKey = a.Length == 0 ? "ID" : (a[0] as PrimaryKeyAttribute).Value;
-			ti.SequenceName = a.Length == 0 ? null : (a[0] as PrimaryKeyAttribute).sequenceName;
-			ti.AutoIncrement = a.Length == 0 ? false : (a[0] as PrimaryKeyAttribute).autoIncrement;
+			if (a.Length != 0)
+			{
+				ti.PrimaryKey = a.Length == 0 ? "ID" : (a[0] as PrimaryKeyAttribute).Value;
+				ti.SequenceName = a.Length == 0 ? null : (a[0] as PrimaryKeyAttribute).sequenceName;
+				ti.AutoIncrement = a.Length == 0 ? false : (a[0] as PrimaryKeyAttribute).autoIncrement;
+			}
+
+			// Get the primary key on property level
+			else
+			{
+				foreach (var property in t.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+				{
+					a = property.GetCustomAttributes(typeof(PrimaryKeyAttribute), true);
+
+					if (a.Length != 0)
+					{
+						var c = t.GetCustomAttributes(typeof(ColumnAttribute), true);
+						if (!string.IsNullOrEmpty(ti.PrimaryKey))
+							ti.PrimaryKey += ",";
+						ti.PrimaryKey += c.Length == 0 ? property.Name : (c[0] as ColumnAttribute).Name;
+					}
+				}
+
+				// AutoIncrement and Sequence are not supported with multi primary key
+				ti.SequenceName = null;
+				ti.AutoIncrement = false;
+			}
 
 			return ti;
 		}
@@ -3104,13 +3160,24 @@ namespace PetaPoco
 			}
 
 			/// <summary>
-			/// Returns the prefix used to delimit parameters in SQL query strings.
+			/// Builds the parameter used in SQL query strings.
 			/// </summary>
 			/// <param name="ConnectionString"></param>
 			/// <returns></returns>
 			public virtual string BuildParameter(string prefix, int index)
 			{
 				return string.Format("{0}{1}", prefix, index );
+			}
+
+
+			/// <summary>
+			/// Returns if named parameters are supported
+			/// </summary>
+			/// <param name="connectionString"></param>
+			/// <returns></returns>
+			public virtual bool IsNamedParamsSupported(string connectionString)
+			{
+				return true;
 			}
 
 			/// <summary>
@@ -3128,6 +3195,15 @@ namespace PetaPoco
 
 				// Leave it
 				return value;
+			}
+
+			/// <summary>
+			/// Called immediately before a command is being build, allowing for modification of parameters and sql string
+			/// </summary>
+			/// <param name="sql">Reference to the sql</param>
+			/// <param name="param">Reference to the parameter list</param>
+			public virtual void PreBuildCommand(ref string sql, ref object[] param)
+			{
 			}
 
 			/// <summary>
@@ -3257,7 +3333,6 @@ namespace PetaPoco
 				// Assume SQL Server
 				return Singleton<SqlServerDatabaseType>.Instance;
 			}
-
 		}
 
 		internal class ExpandoColumn : PocoColumn
@@ -3476,7 +3551,7 @@ namespace PetaPoco
 
 				// Work out bound properties
 				Columns = new Dictionary<string, PocoColumn>(StringComparer.OrdinalIgnoreCase);
-				foreach (var pi in t.GetProperties())
+				foreach (var pi in t.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
 				{
 					ColumnInfo ci = mapper.GetColumnInfo(pi);
 					if (ci == null)
@@ -4094,9 +4169,31 @@ namespace PetaPoco
 				return prefix;
 			}
 
-			public override void PreExecute(IDbCommand cmd)
+			public override bool IsNamedParamsSupported(string connectionString)
 			{
-				cmd.GetType().GetProperty("BindByName").SetValue(cmd, true, null);
+				return false;
+			}
+
+			public override void PreBuildCommand(ref string sql, ref object[] param)
+			{
+				// Check if we have an anonymous input parameter
+				if (param != null && param.Length == 1 && param[0].GetType().Namespace == null)
+				{
+					Regex namedParamRegex = new Regex("[@:][a-zA-Z0-9_]+", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+					if (namedParamRegex.IsMatch(sql))
+					{
+						var paramType = param[0];
+						var parameterList = new List<object>();
+						System.Type type = paramType.GetType();
+						foreach (Match match in namedParamRegex.Matches(sql))
+						{
+							parameterList.Add(type.GetProperty(match.Value.Substring(1)).GetValue(paramType, null));
+						}
+						sql = namedParamRegex.Replace(sql, "?");
+						param = parameterList.ToArray();
+					}
+				}
 			}
 
 			public override string BuildPageQuery(long skip, long take, PagingHelper.SQLParts parts, ref object[] args)
@@ -4110,7 +4207,7 @@ namespace PetaPoco
 
 			public override string EscapeSqlIdentifier(string str)
 			{
-				return string.Format("\"{0}\"", str.ToUpperInvariant());
+				return string.Format("{0}", str.ToUpperInvariant());
 			}
 
 			public override string GetAutoIncrementExpression(TableInfo ti)
@@ -4135,6 +4232,10 @@ namespace PetaPoco
 				}
 			}
 
+			public override string GetExistsSql()
+			{
+				return "SELECT FIRST 1 1 FROM {0} WHERE {1}";
+			}
 		}
 
 		class MySqlDatabaseType : DatabaseType

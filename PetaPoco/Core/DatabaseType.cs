@@ -30,9 +30,19 @@ namespace PetaPoco.Internal
 		/// <returns></returns>
 		public virtual string BuildParameter(string prefix, int index)
 		{
-		    return string.Format("{0}{1}", prefix, index );
+			return string.Format("{0}{1}", prefix, index );
 		}
 
+
+		/// <summary>
+		/// Returns if named parameters are supported
+		/// </summary>
+		/// <param name="connectionString"></param>
+		/// <returns></returns>
+		public virtual bool IsNamedParamsSupported(string connectionString)
+		{
+			return true;
+		}
 
 		/// <summary>
 		/// Converts a supplied C# object value into a value suitable for passing to the database
@@ -49,6 +59,15 @@ namespace PetaPoco.Internal
 	
 			// Leave it
 			return value;
+		}
+
+		/// <summary>
+		/// Called immediately before a command is being build, allowing for modification of parameters and sql string
+		/// </summary>
+		/// <param name="sql">Reference to the sql</param>
+		/// <param name="param">Reference to the parameter list</param>
+		public virtual void PreBuildCommand(ref string sql, ref object[] param)
+		{
 		}
 
 		/// <summary>
@@ -149,9 +168,9 @@ namespace PetaPoco.Internal
 		public static DatabaseType Resolve(string TypeName, string ProviderName)
 		{
 			// Try using type name first (more reliable)
-            if (TypeName.StartsWith("Ifx"))
-                return Singleton<InformixDatabaseType>.Instance;
-            if (TypeName.StartsWith("MySql")) 
+			if (TypeName.StartsWith("Ifx"))
+				return Singleton<InformixDatabaseType>.Instance;
+			if (TypeName.StartsWith("MySql")) 
 				return Singleton<MySqlDatabaseType>.Instance;
 			if (TypeName.StartsWith("SqlCe")) 
 				return Singleton<SqlServerCEDatabaseType>.Instance;
@@ -161,7 +180,7 @@ namespace PetaPoco.Internal
 				return Singleton<OracleDatabaseType>.Instance;
 			if (TypeName.StartsWith("SQLite")) 
 				return Singleton<SQLiteDatabaseType>.Instance;
-            if (TypeName.StartsWith("System.Data.SqlClient.")) 
+			if (TypeName.StartsWith("System.Data.SqlClient.")) 
 				return Singleton<SqlServerDatabaseType>.Instance;
 			// Try again with provider name
 			if (ProviderName.IndexOf("MySql", StringComparison.InvariantCultureIgnoreCase) >= 0) 

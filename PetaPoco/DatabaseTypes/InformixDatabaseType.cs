@@ -2,27 +2,51 @@
 // Copyright © 2011-2012 Topten Software.  All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Text.RegularExpressions;
 using PetaPoco.Internal;
 
 
 namespace PetaPoco.DatabaseTypes
 {
-    class InformixDatabaseType : DatabaseType
+	class InformixDatabaseType : DatabaseType
 	{
 		public override string GetParameterPrefix(string ConnectionString)
 		{
 			return "?";
 		}
 
-        public override string BuildParameter(string prefix, int index)
-        {
-            return prefix;
-        }
-
-		public override void PreExecute(IDbCommand cmd)
+		public override string BuildParameter(string prefix, int index)
 		{
-			cmd.GetType().GetProperty("BindByName").SetValue(cmd, true, null);
+			return prefix;
+		}
+
+		public override bool IsNamedParamsSupported(string connectionString)
+		{
+			return false;
+		}
+
+		public override void PreBuildCommand(ref string sql, ref object[] param)
+		{
+			// Check if we have an anonymous input parameter
+			if (param != null && param.Length == 1 && param[0].GetType().Namespace == null)
+			{
+				Regex namedParamRegex = new Regex("[@:][a-zA-Z0-9_]+", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+				
+				if (namedParamRegex.IsMatch(sql))
+				{
+					var paramType = param[0];
+					var parameterList = new List<object>();
+					System.Type type = paramType.GetType();
+					foreach (Match match in namedParamRegex.Matches(sql))
+					{
+						parameterList.Add(type.GetProperty(match.Value.Substring(1)).GetValue(paramType, null));
+					}
+					sql = namedParamRegex.Replace(sql, "?");
+					param = parameterList.ToArray();
+				}
+			}
 		}
 
 		public override string BuildPageQuery(long skip, long take, PagingHelper.SQLParts parts, ref object[] args)
@@ -36,7 +60,7 @@ namespace PetaPoco.DatabaseTypes
 
 		public override string EscapeSqlIdentifier(string str)
 		{
-            return string.Format("\"{0}\"", str.ToUpperInvariant());
+			return string.Format("{0}", str.ToUpperInvariant());
 		}
 
 		public override string GetAutoIncrementExpression(TableInfo ti)
@@ -51,8 +75,8 @@ namespace PetaPoco.DatabaseTypes
 		{
 			if (PrimaryKeyName != null)
 			{
-                db.ExecuteNonQueryHelper(cmd);
-                return db.ExecuteScalar<object>("SELECT dbinfo('bigserial')"); // select dbinfo('sqlca.sqlerrd1') from systable where tabid = 1 
+				db.ExecuteNonQueryHelper(cmd);
+				return db.ExecuteScalar<object>("SELECT dbinfo('bigserial')"); // select dbinfo('sqlca.sqlerrd1') from systable where tabid = 1 
 			}
 			else
 			{
@@ -61,5 +85,9 @@ namespace PetaPoco.DatabaseTypes
 			}
 		}
 
+		public override string GetExistsSql()
+		{
+			return "SELECT FIRST 1 1 FROM {0} WHERE {1}";
+		}
 	}
 }

@@ -9,9 +9,14 @@ namespace PetaPoco
 	/// Specifies the primary key column of a poco class, whether the column is auto incrementing
 	/// and the sequence name for Oracle sequence columns.
 	/// </summary>
-	[AttributeUsage(AttributeTargets.Class)]
+	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Property)]
 	public class PrimaryKeyAttribute : Attribute
 	{
+		public PrimaryKeyAttribute()
+		{
+			autoIncrement = true;
+		}
+
 		public PrimaryKeyAttribute(string primaryKey)
 		{
 			Value = primaryKey;

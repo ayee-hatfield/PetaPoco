@@ -64,7 +64,7 @@ namespace PetaPoco.Internal
 
 			// Work out bound properties
 			Columns = new Dictionary<string, PocoColumn>(StringComparer.OrdinalIgnoreCase);
-			foreach (var pi in t.GetProperties())
+			foreach (var pi in t.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
 			{
 				ColumnInfo ci = mapper.GetColumnInfo(pi);
 				if (ci == null)
