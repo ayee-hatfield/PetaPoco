@@ -79,7 +79,7 @@ namespace PetaPoco
 
 					if (a.Length != 0)
 					{
-						var c = t.GetCustomAttributes(typeof(ColumnAttribute), true);
+						var c = property.GetCustomAttributes(typeof(ColumnAttribute), true);
 						if (!string.IsNullOrEmpty(ti.PrimaryKey))
 							ti.PrimaryKey += ",";
 						ti.PrimaryKey += c.Length == 0 ? property.Name : (c[0] as ColumnAttribute).Name;
