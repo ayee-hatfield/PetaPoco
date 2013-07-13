@@ -5,7 +5,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 
-namespace PetaPoco.Core
+namespace PetaPoco
 {
 	public class FluentColumnMap
 	{
