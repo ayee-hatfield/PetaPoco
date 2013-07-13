@@ -3094,7 +3094,7 @@ namespace PetaPoco
 
 					if (a.Length != 0)
 					{
-						var c = t.GetCustomAttributes(typeof(ColumnAttribute), true);
+						var c = property.GetCustomAttributes(typeof(ColumnAttribute), true);
 						if (!string.IsNullOrEmpty(ti.PrimaryKey))
 							ti.PrimaryKey += ",";
 						ti.PrimaryKey += c.Length == 0 ? property.Name : (c[0] as ColumnAttribute).Name;
@@ -3333,6 +3333,7 @@ namespace PetaPoco
 				// Assume SQL Server
 				return Singleton<SqlServerDatabaseType>.Instance;
 			}
+
 		}
 
 		internal class ExpandoColumn : PocoColumn
@@ -4153,6 +4154,75 @@ namespace PetaPoco
 			public static T Instance = new T();
 		}
 
+	}
+
+	namespace Core
+	{
+		public class FluentMap
+		{
+			public ColumnInfo ColumnInfo { get; set; }
+			public Func<object, object> FromDbConverter { get; set; }
+			public Func<object, object> ToDbConverter { get; set; }
+
+			public FluentMap() { }
+			public FluentMap(ColumnInfo columnInfo) : this(columnInfo, null) { }
+			public FluentMap(ColumnInfo columnInfo, Func<object, object> fromDbConverter) : this(columnInfo, fromDbConverter, null) { }
+			public FluentMap(ColumnInfo columnInfo, Func<object, object> fromDbConverter, Func<object, object> toDbConverter)
+			{
+				ColumnInfo = columnInfo;
+				FromDbConverter = fromDbConverter;
+				ToDbConverter = toDbConverter;
+			}
+		}
+
+		public class FluentMapper<T> : IMapper
+		{
+			public Dictionary<string, FluentMap> Mappings = new Dictionary<string, FluentMap>();
+			private static TableInfo _ti;
+
+			public TableInfo GetTableInfo(Type pocoType)
+			{
+				return _ti;
+			}
+
+			public ColumnInfo GetColumnInfo(PropertyInfo pocoProperty)
+			{
+				return Mappings[pocoProperty.Name].ColumnInfo;
+			}
+
+			public Func<object, object> GetFromDbConverter(PropertyInfo TargetProperty, Type SourceType)
+			{
+				return Mappings[TargetProperty.Name].FromDbConverter;
+			}
+
+			public Func<object, object> GetToDbConverter(PropertyInfo SourceProperty)
+			{
+				return Mappings[SourceProperty.Name].FromDbConverter;
+			}
+		}
+
+		public static class FluentMapperExtensions
+		{
+			public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column) where T : class
+			{
+				return obj.Property(action, column, null);
+			}
+
+			public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter) where T : class
+			{
+				return obj.Property(action,  column, fromDbConverter, null);
+			}
+
+			public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, Func<object, object> toDbConverter) where T : class
+			{
+				var expression = (MemberExpression)action.Body;
+				string name = expression.Member.Name;
+
+				obj.Mappings.Add(name, new FluentMap(new ColumnInfo() { ColumnName = column }, fromDbConverter, toDbConverter));
+
+				return obj;
+			}
+		}
 	}
 
 	namespace DatabaseTypes
