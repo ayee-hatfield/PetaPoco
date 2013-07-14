@@ -2550,17 +2550,26 @@ namespace PetaPoco
 
 		public ColumnInfo GetColumnInfo(PropertyInfo pocoProperty)
 		{
-			return Mappings[pocoProperty.Name].ColumnInfo;
+			var fluentMap = default(FluentColumnMap);
+			if(Mappings.TryGetValue(pocoProperty.Name, out fluentMap))
+				return fluentMap.ColumnInfo;
+			return null;
 		}
 
 		public Func<object, object> GetFromDbConverter(PropertyInfo TargetProperty, Type SourceType)
 		{
-			return Mappings[TargetProperty.Name].FromDbConverter;
+			var fluentMap = default(FluentColumnMap);
+			if (Mappings.TryGetValue(TargetProperty.Name, out fluentMap))
+				return fluentMap.FromDbConverter;
+			return null;
 		}
 
 		public Func<object, object> GetToDbConverter(PropertyInfo SourceProperty)
 		{
-			return Mappings[SourceProperty.Name].FromDbConverter;
+			var fluentMap = default(FluentColumnMap);
+			if (Mappings.TryGetValue(SourceProperty.Name, out fluentMap))
+				return fluentMap.ToDbConverter;
+			return null;
 		}
 	}
 
