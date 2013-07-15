@@ -1,9 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
 
 namespace PetaPoco
 {
@@ -29,6 +27,11 @@ namespace PetaPoco
 		public Dictionary<string, FluentColumnMap> Mappings = new Dictionary<string, FluentColumnMap>();
 		public TableInfo TableInfo = new TableInfo();
 
+		protected FluentMapper(string tableName)
+		{
+			TableInfo.TableName = tableName;
+		}
+
 		protected FluentMapper(string tableName, string primaryKey)
 		{
 			TableInfo.TableName = tableName;
@@ -42,48 +45,54 @@ namespace PetaPoco
 
 		public ColumnInfo GetColumnInfo(PropertyInfo pocoProperty)
 		{
-		    var fluentMap = default(FluentColumnMap);
-            if(Mappings.TryGetValue(pocoProperty.Name, out fluentMap))
-                return fluentMap.ColumnInfo;
-		    return null;
+			var fluentMap = default(FluentColumnMap);
+			if (Mappings.TryGetValue(pocoProperty.Name, out fluentMap))
+				return fluentMap.ColumnInfo;
+			return null;
 		}
 
 		public Func<object, object> GetFromDbConverter(PropertyInfo TargetProperty, Type SourceType)
 		{
-            var fluentMap = default(FluentColumnMap);
-            if (Mappings.TryGetValue(TargetProperty.Name, out fluentMap))
-                return fluentMap.FromDbConverter;
-            return null;
+			var fluentMap = default(FluentColumnMap);
+			if (Mappings.TryGetValue(TargetProperty.Name, out fluentMap))
+				return fluentMap.FromDbConverter;
+			return null;
 		}
 
 		public Func<object, object> GetToDbConverter(PropertyInfo SourceProperty)
 		{
-            var fluentMap = default(FluentColumnMap);
-            if (Mappings.TryGetValue(SourceProperty.Name, out fluentMap))
-                return fluentMap.ToDbConverter;
-            return null;
+			var fluentMap = default(FluentColumnMap);
+			if (Mappings.TryGetValue(SourceProperty.Name, out fluentMap))
+				return fluentMap.ToDbConverter;
+			return null;
 		}
 	}
 
 	public static class FluentMapperExtensions
 	{
-		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column) where T : class
+		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, bool primaryKey = false) where T : class
 		{
-			return obj.Property(action, column, null);
+			return obj.Property(action, column, null, primaryKey);
 		}
 
-		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter) where T : class
+		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, bool primaryKey = false) where T : class
 		{
-			return obj.Property(action,  column, fromDbConverter, null);
+			return obj.Property(action, column, fromDbConverter, null, primaryKey);
 		}
 
-		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, Func<object, object> toDbConverter) where T : class
+		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, Func<object, object> toDbConverter, bool primaryKey = false) where T : class
 		{
 			var expression = (MemberExpression)action.Body;
 			string name = expression.Member.Name;
 
 			obj.Mappings.Add(name, new FluentColumnMap(new ColumnInfo() { ColumnName = column }, fromDbConverter, toDbConverter));
 
+			if (primaryKey)
+			{
+				if (!string.IsNullOrEmpty(obj.TableInfo.PrimaryKey))
+					obj.TableInfo.PrimaryKey += ",";
+				obj.TableInfo.PrimaryKey += column;
+			}
 			return obj;
 		}
 	}
