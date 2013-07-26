@@ -1473,20 +1473,69 @@ namespace PetaPoco
 		/// <returns>The number of rows affected</returns>
 		public int Delete(string tableName, string primaryKeyName, object poco, object primaryKeyValue)
 		{
-			// If primary key value not specified, pick it up from the object
-			if (primaryKeyValue == null)
-			{
-				var pd = PocoData.ForObject(poco,primaryKeyName);
-				PocoColumn pc;
-				if (pd.Columns.TryGetValue(primaryKeyName, out pc))
-				{
-					primaryKeyValue = pc.GetValue(poco);
-				}
-			}
+            try
+            {
+                OpenSharedConnection();
+                try
+                {
+                    using (var cmd = CreateCommand(_sharedConnection, ""))
+                    {
+                        var sb = new StringBuilder();
+                        var index = 0;
+                        var pd = PocoData.ForObject(poco, primaryKeyName);
+   
+                        var multiplePrimaryKeys = primaryKeyName.Split(',');
+                        if (multiplePrimaryKeys.Length == 1)
+                        {
+                            // Find the property info for the primary key
+                            PropertyInfo pkpi = null;
+                            if (primaryKeyName != null)
+                            {
+                                pkpi = pd.Columns[primaryKeyName].PropertyInfo;
+                            }
 
-			// Do it
-			var sql = string.Format("DELETE FROM {0} WHERE {1}=@0", _dbType.EscapeTableName(tableName), _dbType.EscapeSqlIdentifier(primaryKeyName));
-			return Execute(sql, primaryKeyValue);
+                            cmd.CommandText = string.Format("DELETE FROM {0} WHERE {1}={2}", 
+                                _dbType.EscapeTableName(tableName), _dbType.EscapeSqlIdentifier(primaryKeyName), _dbType.BuildParameter(_paramPrefix, index++));
+                            AddParam(cmd, primaryKeyValue, pkpi);
+                        }
+                        else
+                        {
+                            var pkQuery = new StringBuilder();
+
+                            for (int pkIndex = 0; pkIndex < multiplePrimaryKeys.Length; pkIndex++)
+                            {
+                                if (pkIndex > 0)
+                                    pkQuery.Append(" AND ");
+                                pkQuery.Append(string.Format("{0}={1}", _dbType.EscapeSqlIdentifier(multiplePrimaryKeys[pkIndex]), _dbType.BuildParameter(_paramPrefix, index++)));
+                                index++;
+                                var pc = pd.Columns[multiplePrimaryKeys[pkIndex]];
+                                primaryKeyValue = pc.GetValue(poco);
+                                AddParam(cmd, primaryKeyValue, pd.Columns[multiplePrimaryKeys[pkIndex]].PropertyInfo);
+                            }
+
+                            cmd.CommandText = string.Format("DELETE FROM {0} WHERE {1}}",
+                                _dbType.EscapeTableName(tableName), pkQuery);
+                        }
+
+                        DoPreExecute(cmd);
+
+                        // Do it
+                        var retv = cmd.ExecuteNonQuery();
+                        OnExecutedCommand(cmd);
+                        return retv;
+                    }
+                }
+                finally
+                {
+                    CloseSharedConnection();
+                }
+            }
+            catch (Exception x)
+            {
+                if (OnException(x))
+                    throw;
+                return -1;
+            }
 		}
 
 		/// <summary>
