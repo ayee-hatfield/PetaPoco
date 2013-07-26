@@ -16,7 +16,7 @@ namespace PetaPoco.DatabaseTypes
 			return sqlPage;
 		}
 
-		public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName)
+        public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName, string tableName)
 		{
 			db.ExecuteNonQueryHelper(cmd);
 			return db.ExecuteScalar<object>("SELECT @@@IDENTITY AS NewID;");

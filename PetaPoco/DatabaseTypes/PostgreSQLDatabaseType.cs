@@ -22,7 +22,7 @@ namespace PetaPoco.DatabaseTypes
 			return string.Format("\"{0}\"", str);
 		}
 
-		public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName)
+        public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName, string tableName)
 		{
 			if (PrimaryKeyName != null)
 			{

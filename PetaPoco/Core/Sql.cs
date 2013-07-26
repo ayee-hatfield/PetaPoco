@@ -81,8 +81,7 @@ namespace PetaPoco
 		{
 			get
 			{
-				Build();
-				return _argsFinal;
+				return _args;
 			}
 		}
 

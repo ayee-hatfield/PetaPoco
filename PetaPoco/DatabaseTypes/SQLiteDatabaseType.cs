@@ -17,7 +17,7 @@ namespace PetaPoco.DatabaseTypes
 			return base.MapParameterValue(value);
 		}
 
-		public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName)
+        public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName, string tableName)
 		{
 			if (PrimaryKeyName != null)
 			{

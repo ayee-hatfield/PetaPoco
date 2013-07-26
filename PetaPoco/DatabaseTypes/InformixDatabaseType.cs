@@ -71,12 +71,12 @@ namespace PetaPoco.DatabaseTypes
 			return null;
 		}
 
-		public override object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName)
+        public override object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName, string tableName)
 		{
 			if (PrimaryKeyName != null)
 			{
 				db.ExecuteNonQueryHelper(cmd);
-				return db.ExecuteScalar<object>("SELECT dbinfo('bigserial')"); // select dbinfo('sqlca.sqlerrd1') from systable where tabid = 1 
+                return db.ExecuteScalar<object>(string.Format("SELECT DISTINCT dbinfo('sqlca.sqlerrd1') FROM {0};", tableName));
 			}
 			else
 			{

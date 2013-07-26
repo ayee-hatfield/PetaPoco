@@ -1170,7 +1170,7 @@ namespace PetaPoco
 						}
 
 
-						object id = _dbType.ExecuteInsert(this, cmd, primaryKeyName);
+                        object id = _dbType.ExecuteInsert(this, cmd, primaryKeyName, _dbType.EscapeTableName(tableName));
 
 
 						// Assign the ID back to the primary key property

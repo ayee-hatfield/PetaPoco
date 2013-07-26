@@ -152,7 +152,7 @@ namespace PetaPoco.Internal
 		/// <param name="cmd">The insert command to be executed</param>
 		/// <param name="PrimaryKeyName">The primary key of the table being inserted into</param>
 		/// <returns>The ID of the newly inserted record</returns>
-		public virtual object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName)
+        public virtual object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName, string tableName)
 		{
 			cmd.CommandText += ";\nSELECT @@IDENTITY AS NewID;";
 			return db.ExecuteScalarHelper(cmd);

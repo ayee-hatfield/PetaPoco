@@ -1176,7 +1176,7 @@ namespace PetaPoco
 						}
 
 
-						object id = _dbType.ExecuteInsert(this, cmd, primaryKeyName);
+						object id = _dbType.ExecuteInsert(this, cmd, primaryKeyName, _dbType.EscapeTableName(tableName));
 
 
 						// Assign the ID back to the primary key property
@@ -2920,8 +2920,7 @@ namespace PetaPoco
 		{
 			get
 			{
-				Build();
-				return _argsFinal;
+				return _args;
 			}
 		}
 
@@ -3380,7 +3379,7 @@ namespace PetaPoco
 			/// <param name="cmd">The insert command to be executed</param>
 			/// <param name="PrimaryKeyName">The primary key of the table being inserted into</param>
 			/// <returns>The ID of the newly inserted record</returns>
-			public virtual object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName)
+			public virtual object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName, string tableName)
 			{
 				cmd.CommandText += ";\nSELECT @@IDENTITY AS NewID;";
 				return db.ExecuteScalarHelper(cmd);
@@ -4311,12 +4310,12 @@ namespace PetaPoco
 				return null;
 			}
 
-			public override object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName)
+			public override object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName, string tableName)
 			{
 				if (PrimaryKeyName != null)
 				{
 					db.ExecuteNonQueryHelper(cmd);
-					return db.ExecuteScalar<object>("SELECT dbinfo('bigserial')"); // select dbinfo('sqlca.sqlerrd1') from systable where tabid = 1 
+					return db.ExecuteScalar<object>(string.Format("SELECT DISTINCT dbinfo('sqlca.sqlerrd1') FROM {0};", tableName));
 				}
 				else
 				{
@@ -4386,7 +4385,7 @@ namespace PetaPoco
 				return null;
 			}
 
-			public override object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName)
+			public override object ExecuteInsert(Database db, IDbCommand cmd, string PrimaryKeyName, string tableName)
 			{
 				if (PrimaryKeyName != null)
 				{
@@ -4425,7 +4424,7 @@ namespace PetaPoco
 				return string.Format("\"{0}\"", str);
 			}
 
-			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName)
+			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName, string tableName)
 			{
 				if (PrimaryKeyName != null)
 				{
@@ -4450,7 +4449,7 @@ namespace PetaPoco
 				return base.MapParameterValue(value);
 			}
 
-			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName)
+			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName, string tableName)
 			{
 				if (PrimaryKeyName != null)
 				{
@@ -4480,7 +4479,7 @@ namespace PetaPoco
 				return sqlPage;
 			}
 
-			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName)
+			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName, string tableName)
 			{
 				db.ExecuteNonQueryHelper(cmd);
 				return db.ExecuteScalar<object>("SELECT @@@IDENTITY AS NewID;");
@@ -4504,7 +4503,7 @@ namespace PetaPoco
 				return sqlPage;
 			}
 
-			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName)
+			public override object ExecuteInsert(Database db, System.Data.IDbCommand cmd, string PrimaryKeyName, string tableName)
 			{
 				return db.ExecuteScalarHelper(cmd);
 			}
