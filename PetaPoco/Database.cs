@@ -400,7 +400,7 @@ namespace PetaPoco
 		}
 
 		// Create a command
-		static Regex rxParamsPrefix = new Regex(@"(?<!@)@\w+", RegexOptions.Compiled);
+        static Regex rxParamsPrefix = new Regex(@"(?<=^([^']|'[^']*')*)@\w+", RegexOptions.Compiled);
 		public IDbCommand CreateCommand(IDbConnection connection, string sql, params object[] args)
 		{
 			// Prebuild the sql
@@ -943,7 +943,7 @@ namespace PetaPoco
 		/// <returns>True if a record with the specified primary key value exists.</returns>
 		public bool Exists<T>(object primaryKey)
 		{
-			return Exists<T>(string.Format("{0}=@0", _dbType.EscapeSqlIdentifier(PocoData.ForType(typeof(T)).TableInfo.PrimaryKey)), primaryKey);
+            return Exists<T>(string.Format("{0}={1}", _dbType.EscapeSqlIdentifier(PocoData.ForType(typeof(T)).TableInfo.PrimaryKey), _dbType.BuildParameter(_paramPrefix, 0)), primaryKey);
 		}
 
 		#endregion
@@ -961,7 +961,10 @@ namespace PetaPoco
 		/// </remarks>
 		public T Single<T>(object primaryKey) 
 		{
-			return Single<T>(string.Format("WHERE {0}=@0", _dbType.EscapeSqlIdentifier(PocoData.ForType(typeof(T)).TableInfo.PrimaryKey)), primaryKey);
+            return Single<T>(string.Format("WHERE {0}={1}",
+                                        _dbType.EscapeSqlIdentifier(PocoData.ForType(typeof(T)).TableInfo.PrimaryKey),
+                                        _dbType.BuildParameter(_paramPrefix, 0)),
+                          primaryKey);
 		}
 
 		/// <summary>
@@ -975,7 +978,10 @@ namespace PetaPoco
 		/// </remarks>
 		public T SingleOrDefault<T>(object primaryKey) 
 		{
-			return SingleOrDefault<T>(string.Format("WHERE {0}=@0", _dbType.EscapeSqlIdentifier(PocoData.ForType(typeof(T)).TableInfo.PrimaryKey)), primaryKey);
+            return SingleOrDefault<T>(string.Format("WHERE {0}={1}",
+                                        _dbType.EscapeSqlIdentifier(PocoData.ForType(typeof(T)).TableInfo.PrimaryKey),
+                                        _dbType.BuildParameter(_paramPrefix, 0)),
+                          primaryKey);
 		}
 
 		/// <summary>
@@ -1480,40 +1486,40 @@ namespace PetaPoco
                 {
                     using (var cmd = CreateCommand(_sharedConnection, ""))
                     {
-                        var sb = new StringBuilder();
-                        var index = 0;
-                        var pd = PocoData.ForObject(poco, primaryKeyName);
-   
                         var multiplePrimaryKeys = primaryKeyName.Split(',');
                         if (multiplePrimaryKeys.Length == 1)
                         {
                             // Find the property info for the primary key
-                            PropertyInfo pkpi = null;
-                            if (primaryKeyName != null)
+                            if (poco != null)
                             {
-                                pkpi = pd.Columns[primaryKeyName].PropertyInfo;
+                                var pd = PocoData.ForObject(poco, primaryKeyName);
+                                var pkpi = pd.Columns[primaryKeyName].PropertyInfo;
+                                AddParam(cmd, pd.Columns[primaryKeyName].GetValue(poco), pkpi);
                             }
-
-                            cmd.CommandText = string.Format("DELETE FROM {0} WHERE {1}={2}", 
-                                _dbType.EscapeTableName(tableName), _dbType.EscapeSqlIdentifier(primaryKeyName), _dbType.BuildParameter(_paramPrefix, index++));
-                            AddParam(cmd, primaryKeyValue, pkpi);
+                            else
+                            {
+                                AddParam(cmd, primaryKeyValue, null);
+                            }
+                            cmd.CommandText = string.Format("DELETE FROM {0} WHERE {1}={2}",
+                                _dbType.EscapeTableName(tableName), _dbType.EscapeSqlIdentifier(primaryKeyName), _dbType.BuildParameter(_paramPrefix, 0));
                         }
                         else
                         {
                             var pkQuery = new StringBuilder();
+                            var pd = PocoData.ForObject(poco, primaryKeyName);
+                            var sb = new StringBuilder();
 
                             for (int pkIndex = 0; pkIndex < multiplePrimaryKeys.Length; pkIndex++)
                             {
                                 if (pkIndex > 0)
                                     pkQuery.Append(" AND ");
-                                pkQuery.Append(string.Format("{0}={1}", _dbType.EscapeSqlIdentifier(multiplePrimaryKeys[pkIndex]), _dbType.BuildParameter(_paramPrefix, index++)));
-                                index++;
+                                pkQuery.Append(string.Format("{0}={1}", _dbType.EscapeSqlIdentifier(multiplePrimaryKeys[pkIndex]), _dbType.BuildParameter(_paramPrefix, pkIndex)));
                                 var pc = pd.Columns[multiplePrimaryKeys[pkIndex]];
                                 primaryKeyValue = pc.GetValue(poco);
                                 AddParam(cmd, primaryKeyValue, pd.Columns[multiplePrimaryKeys[pkIndex]].PropertyInfo);
                             }
 
-                            cmd.CommandText = string.Format("DELETE FROM {0} WHERE {1}}",
+                            cmd.CommandText = string.Format("DELETE FROM {0} WHERE {1}",
                                 _dbType.EscapeTableName(tableName), pkQuery);
                         }
 

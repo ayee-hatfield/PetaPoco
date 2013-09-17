@@ -70,22 +70,22 @@ namespace PetaPoco
 
 	public static class FluentMapperExtensions
 	{
-		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, bool primaryKey = false) where T : class
+		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, bool primaryKey = false, bool readOnly = false) where T : class
 		{
-			return obj.Property(action, column, null, primaryKey);
+			return obj.Property(action, column, null, primaryKey, readOnly);
 		}
 
-		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, bool primaryKey = false) where T : class
+		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, bool primaryKey = false, bool readOnly = false) where T : class
 		{
-			return obj.Property(action, column, fromDbConverter, null, primaryKey);
+			return obj.Property(action, column, fromDbConverter, null, primaryKey, readOnly);
 		}
 
-		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, Func<object, object> toDbConverter, bool primaryKey = false) where T : class
+		public static FluentMapper<T> Property<T, P>(this FluentMapper<T> obj, Expression<Func<T, P>> action, string column, Func<object, object> fromDbConverter, Func<object, object> toDbConverter, bool primaryKey = false, bool readOnly = false) where T : class
 		{
 			var expression = (MemberExpression)action.Body;
 			string name = expression.Member.Name;
 
-			obj.Mappings.Add(name, new FluentColumnMap(new ColumnInfo() { ColumnName = column }, fromDbConverter, toDbConverter));
+			obj.Mappings.Add(name, new FluentColumnMap(new ColumnInfo() { ColumnName = column, ResultColumn = readOnly}, fromDbConverter, toDbConverter));
 
 			if (primaryKey)
 			{
