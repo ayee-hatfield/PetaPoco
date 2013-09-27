@@ -140,7 +140,7 @@ namespace PetaPoco
 		/// <summary>
 		/// Automatically close one open shared connection 
 		/// </summary>
-		public void Dispose()
+		public virtual void Dispose()
 		{
 			// Automatically close one open connection reference
 			//  (Works with KeepConnectionAlive and manually opening a shared connection)
@@ -351,6 +351,19 @@ namespace PetaPoco
 			if (value == null)
 			{
 				p.Value = DBNull.Value;
+
+				if (pi != null)
+				{
+					// Set DbType to prevent type error
+					var underlyingType = Nullable.GetUnderlyingType(pi.PropertyType);
+					var returnType = underlyingType ?? pi.PropertyType;
+					if (returnType == typeof(int))
+						p.DbType = DbType.Int32;
+					if (returnType == typeof(short))
+						p.DbType = DbType.Int16;
+					if (returnType == typeof(decimal))
+						p.DbType = DbType.Decimal;
+				}
 			}
 			else
 			{
@@ -2108,7 +2121,7 @@ namespace PetaPoco
 				sb.Append("\n");
 				for (int i = 0; i < args.Length; i++)
 				{
-					sb.AppendFormat("\t -> {0}{1} [{2}] = \"{3}\"\n", _paramPrefix, i, args[i].GetType().Name, args[i]);
+					sb.AppendFormat("\t -> {0}{1} [{2}] = \"{3}\"\n", _paramPrefix, i, args[i] == null ? "null" : args[i].GetType().Name, args[i]);
 				}
 				sb.Remove(sb.Length - 1, 1);
 			}
@@ -3479,7 +3492,6 @@ namespace PetaPoco
 				// Assume SQL Server
 				return Singleton<SqlServerDatabaseType>.Instance;
 			}
-
 		}
 
 		internal class ExpandoColumn : PocoColumn
